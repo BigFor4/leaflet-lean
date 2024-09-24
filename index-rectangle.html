@@ -25,15 +25,6 @@
             transform-origin: top left;
         }
 
-        .pointDrawCenter {
-            background-color: rgba(0, 128, 0, 0.267);
-            border: 2px solid rgba(0, 0, 0, 0.267);
-            border-radius: 50%;
-            width: 15px;
-            height: 15px;
-            z-index: 1000 !important;
-        }
-
         .centered-overlay {
             transform-origin: center;
         }
@@ -51,7 +42,7 @@
 
 <body>
     <div id="map"></div>
-    <div id="html-overlay" style="display: none;">
+    <div id="html-overlay">
         <h2>Thông tin</h2>
         <p>Đây là nội dung bạn muốn hiển thị.</p>
     </div>
@@ -67,13 +58,6 @@
         }).addTo(map);
 
         const latLng = L.latLng(49.2125578, 16.62662018);
-        let pointDrawCenter = L.marker(latLng, {
-            icon: L.divIcon({
-                className: 'pointDrawCenter',
-                iconSize: [15, 15],
-                iconAnchor: [-7.5, -7.5]
-            })
-        }).addTo(map);
 
         L.DivOverlay = L.Layer.extend({
             initialize: function (htmlElement, latLng, options) {
@@ -81,7 +65,7 @@
                 this._latLng = latLng;
                 L.setOptions(this, options);
                 this._dragging = false;
-                this._resize = false; // Added this line
+                this._resize = false;
             },
 
             onAdd: function (map) {
@@ -93,7 +77,6 @@
                 this._update();
                 map.on('zoomend', this._update, this);
 
-                // Use document-wide event listeners to handle dragging
                 this._container.addEventListener('mousedown', this._startDrag.bind(this));
             },
 
@@ -110,43 +93,68 @@
                 L.DomUtil.addClass(this._container, 'centered-overlay');
                 this._container.style.position = 'absolute';
 
-                // Create resize handles
                 this._createResizeHandles();
             },
 
             _createResizeHandles: function () {
                 if (this.options.editing) {
                     const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right',
-                    'top-middle', 'bottom-middle', 'left-middle', 'right-middle'];
-                positions.forEach((position) => {
-                    const handle = document.createElement('div');
-                    handle.className = 'resize-handle';
-                    handle.style.backgroundColor = position.includes('middle') ? 'blue' : 'red';
+                        'top-middle', 'bottom-middle', 'left-middle', 'right-middle'];
+                    positions.forEach((position) => {
+                        const handle = document.createElement('div');
+                        handle.className = 'resize-handle';
+                        handle.style.backgroundColor = position.includes('middle') ? 'blue' : 'red';
 
-                    if (position.includes('top')) handle.style.top = '-5px';
-                    if (position.includes('bottom')) handle.style.bottom = '-5px';
-                    if (position.includes('left')) handle.style.left = '-5px';
-                    if (position.includes('right')) handle.style.right = '-5px';
+                        // Set position styles
+                        if (position.includes('top')) handle.style.top = '-5px';
+                        if (position.includes('bottom')) handle.style.bottom = '-5px';
+                        if (position.includes('left')) handle.style.left = '-5px';
+                        if (position.includes('right')) handle.style.right = '-5px';
 
-                    if (position === 'top-middle') {
-                        handle.style.left = '50%';
-                        handle.style.transform = 'translateX(-50%)';
-                    } else if (position === 'bottom-middle') {
-                        handle.style.left = '50%';
-                        handle.style.transform = 'translateX(-50%)';
-                    } else if (position === 'left-middle') {
-                        handle.style.top = '50%';
-                        handle.style.transform = 'translateY(-50%)';
-                    } else if (position === 'right-middle') {
-                        handle.style.top = '50%';
-                        handle.style.transform = 'translateY(-50%)';
-                    }
+                        // Center handles
+                        if (position === 'top-middle' || position === 'bottom-middle') {
+                            handle.style.left = '50%';
+                            handle.style.transform = 'translateX(-50%)';
+                        } else if (position === 'left-middle' || position === 'right-middle') {
+                            handle.style.top = '50%';
+                            handle.style.transform = 'translateY(-50%)';
+                        }
 
-                    handle.addEventListener('mousedown', (e) => this._startResize(e, position));
-                    this._container.appendChild(handle);
-                });
+                        // Set cursor style based on position
+                        switch (position) {
+                            case 'top-left':
+                                handle.style.cursor = 'nwse-resize'; // Diagonal resize
+                                break;
+                            case 'top-right':
+                                handle.style.cursor = 'nesw-resize'; // Diagonal resize
+                                break;
+                            case 'bottom-left':
+                                handle.style.cursor = 'nesw-resize'; // Diagonal resize
+                                break;
+                            case 'bottom-right':
+                                handle.style.cursor = 'nwse-resize'; // Diagonal resize
+                                break;
+                            case 'top-middle':
+                                handle.style.cursor = 'ns-resize'; // Vertical resize
+                                break;
+                            case 'bottom-middle':
+                                handle.style.cursor = 'ns-resize'; // Vertical resize
+                                break;
+                            case 'left-middle':
+                                handle.style.cursor = 'ew-resize'; // Horizontal resize
+                                break;
+                            case 'right-middle':
+                                handle.style.cursor = 'ew-resize'; // Horizontal resize
+                                break;
+                        }
+
+                        // Event listener for resizing
+                        handle.addEventListener('mousedown', (e) => this._startResize(e, position));
+                        this._container.appendChild(handle);
+                    });
                 }
             },
+
 
             _update: function () {
                 if (!this._map) return;
@@ -161,7 +169,6 @@
                 this._container.style.height = height + 'px';
                 L.DomUtil.setPosition(this._container, position.subtract([width / 2, height / 2]));
                 this._container.style.display = 'block';
-                pointDrawCenter.setLatLng(this._latLng);
             },
 
             _startDrag: function (e) {
@@ -229,29 +236,38 @@
                 this._resize = false;
                 document.removeEventListener('mousemove', this._resizeOverlay.bind(this));
                 document.removeEventListener('mouseup', this._endResize.bind(this));
+            },
+
+            enableDragging: function () {
+                this.options.dragging = true;
+                this._container.style.cursor = 'move';
+            },
+
+            disableDragging: function () {
+                this.options.dragging = false;
+                this._container.style.cursor = 'default';
+            },
+
+            enableEditing: function () {
+                this.options.editing = true;
+                this._createResizeHandles();
+            },
+
+            disableEditing: function () {
+                this.options.editing = false;
+                const handles = this._container.querySelectorAll('.resize-handle');
+                handles.forEach(handle => handle.remove());
             }
         });
 
-        const legendDiv = document.createElement('div');
-        legendDiv.innerHTML = `
-            <h3>Legend</h3>
-            <div>Wall Light</div>
-            <div>Downlight</div>
-            <div>Pendant Light</div>
-            <div>Double Powerpoint</div>
-            <div>USP Powerpoint</div>
-        `;
-
-        const htmlOverlay = new L.DivOverlay(legendDiv, latLng, {
+        const htmlOverlay = new L.DivOverlay(document.getElementById('html-overlay'), latLng, {
             initialWidthMap: 200,
-            initialHeightMap: 100,
-            dragging: true,
-            isUpdateLocation: true,
+            initialHeightMap: 200,
             initZoom: 14,
-            editing: true,
-        });
+            dragging: true,
+            editing: true
+        }).addTo(map);
 
-        htmlOverlay.addTo(map);
     </script>
 </body>
 
