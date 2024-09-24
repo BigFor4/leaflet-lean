@@ -42,10 +42,6 @@
 
 <body>
     <div id="map"></div>
-    <div id="html-overlay">
-        <h2>Thông tin</h2>
-        <p>Đây là nội dung bạn muốn hiển thị.</p>
-    </div>
     <p><a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">&copy; MapTiler</a> <a
             href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap
             contributors</a></p>
@@ -59,9 +55,18 @@
 
         const latLng = L.latLng(49.2125578, 16.62662018);
 
-        L.DivOverlay = L.Layer.extend({
+        L.TextBox = L.Layer.extend({
             initialize: function (htmlElement, latLng, options) {
-                this._htmlElement = htmlElement;
+                const divText = document.createElement('div');
+                divText.id = 'customOverlayTextBoxDiv';
+                divText.style.height = '100%';
+                divText.style.overflow = 'hidden';
+                const overlay = document.createElement('div');
+                overlay.id = 'customOverlayTextBox';
+                overlay.style.height = '100%';
+                overlay.appendChild(divText);
+                divText.appendChild(htmlElement);
+                this._htmlElement = overlay;
                 this._latLng = latLng;
                 L.setOptions(this, options);
                 this._dragging = false;
@@ -259,8 +264,17 @@
                 handles.forEach(handle => handle.remove());
             }
         });
+        const textBox = document.createElement('div');
+        const title = document.createElement('h2');
+        title.textContent = 'Thông tin';
 
-        const htmlOverlay = new L.DivOverlay(document.getElementById('html-overlay'), latLng, {
+        const content = document.createElement('p');
+        content.textContent = 'Đây là nội dung bạn muốn hiển thị.';
+
+        textBox.appendChild(title);
+        textBox.appendChild(content);
+
+        const htmlOverlay = new L.TextBox(textBox, latLng, {
             initialWidthMap: 200,
             initialHeightMap: 200,
             initZoom: 14,
