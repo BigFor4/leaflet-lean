@@ -65,7 +65,7 @@
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
-        
+
         const latLng = L.latLng(49.2125578, 16.62662018);
         let pointDrawCenter = L.marker(latLng, {
             icon: L.divIcon({
@@ -74,7 +74,7 @@
                 iconAnchor: [-7.5, -7.5]
             })
         }).addTo(map);
-        
+
         L.DivOverlay = L.Layer.extend({
             initialize: function (htmlElement, latLng, options) {
                 this._htmlElement = htmlElement;
@@ -115,18 +115,19 @@
             },
 
             _createResizeHandles: function () {
-                const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right',
-                                   'top-middle', 'bottom-middle', 'left-middle', 'right-middle'];
+                if (this.options.editing) {
+                    const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right',
+                    'top-middle', 'bottom-middle', 'left-middle', 'right-middle'];
                 positions.forEach((position) => {
                     const handle = document.createElement('div');
                     handle.className = 'resize-handle';
                     handle.style.backgroundColor = position.includes('middle') ? 'blue' : 'red';
-                    
+
                     if (position.includes('top')) handle.style.top = '-5px';
                     if (position.includes('bottom')) handle.style.bottom = '-5px';
                     if (position.includes('left')) handle.style.left = '-5px';
                     if (position.includes('right')) handle.style.right = '-5px';
-                    
+
                     if (position === 'top-middle') {
                         handle.style.left = '50%';
                         handle.style.transform = 'translateX(-50%)';
@@ -144,6 +145,7 @@
                     handle.addEventListener('mousedown', (e) => this._startResize(e, position));
                     this._container.appendChild(handle);
                 });
+                }
             },
 
             _update: function () {
@@ -163,13 +165,15 @@
             },
 
             _startDrag: function (e) {
-                this._map.dragging.disable();
-                this._dragging = true;
-                this._startPoint = this._map.latLngToLayerPoint(this._latLng);
-                this._startMousePoint = L.point(e.clientX, e.clientY);
-                document.addEventListener('mousemove', this._drag.bind(this));
-                document.addEventListener('mouseup', this._endDrag.bind(this));
-                e.preventDefault();
+                if (this.options.dragging) {
+                    this._map.dragging.disable();
+                    this._dragging = true;
+                    this._startPoint = this._map.latLngToLayerPoint(this._latLng);
+                    this._startMousePoint = L.point(e.clientX, e.clientY);
+                    document.addEventListener('mousemove', this._drag.bind(this));
+                    document.addEventListener('mouseup', this._endDrag.bind(this));
+                    e.preventDefault();
+                }
             },
 
             _drag: function (e) {
@@ -243,7 +247,8 @@
             initialHeightMap: 100,
             dragging: true,
             isUpdateLocation: true,
-            initZoom: 14
+            initZoom: 14,
+            editing: true,
         });
 
         htmlOverlay.addTo(map);
