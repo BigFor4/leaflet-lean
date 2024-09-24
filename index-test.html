@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>Display Multiple Lines with Different Labels</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        .legendMarker {
+            min-width: 300px;
+            width: 100%;
+        }
+
+        #legendDiv {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            overflow: auto;
+        }
+
+        #legendDiv .flex {
+            flex-grow: 1;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #legendDiv .text-lg {
+            flex-shrink: 0;
+        }
+
+        #legendDiv .electrical {
+            width: 100%;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <p><a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">&copy; MapTiler</a> <a
+            href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap
+            contributors</a></p>
+
+    <script>
+        const map = L.map('map').setView([49.2125578, 16.62662018], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        const getColor = (category) => {
+            return category === 'Wall Light'
+                ? 'green'
+                : category === 'Downlight'
+                    ? 'red'
+                    : category === 'Pendant Light'
+                        ? 'orange'
+                        : category === 'Double Powerpoint'
+                            ? 'blue'
+                            : category === 'USP Powerpoint'
+                                ? '#00ff00'
+                                : '#ffffff'
+        }
+        const legendDiv = document.createElement('div');
+        const categories = [
+            { unit: '3EA', icon: 'ph ph-check', title: 'Wall Light' },
+            { unit: '4EA', icon: 'ph ph-square', title: 'Downlight' },
+            { unit: '5EA', icon: 'ph ph-circle', title: 'Pendant Light' },
+            { unit: '6EA', icon: 'ph ph-arrows-out-line-vertical', title: 'Double Powerpoint' },
+            { unit: '8EA', icon: 'ph ph-hexagon', title: 'USP Powerpoint' },
+        ];
+
+        let labels = [
+            '<div class="text-lg font-semibold electrical">Electrical</div>',
+        ];
+
+        for (let i = 0; i < categories.length; i++) {
+            labels.push(
+                `<div class="flex gap-4 justify-between">
+            <div><i style="color: ${getColor(categories[i].title)}" class="${categories[i].icon} electrical"></i></div>
+            <div class="text-start w-full electrical">${categories[i].title}</div>
+            <div class="electrical legend-unit">${categories[i].unit}</div>
+            </div>`
+            );
+        }
+
+        legendDiv.style.background = 'white';
+        legendDiv.style.padding = '1rem';
+        legendDiv.style.border = '1px solid rgb(203 213 225)';
+        legendDiv.style.cursor = 'pointer';
+        legendDiv.style.overflow = 'hidden';
+        legendDiv.innerHTML = labels.join('<br>');
+        legendDiv.id = 'legendDiv'
+        const legendIcon = L.divIcon({
+            className: 'legendMarker',
+            html: legendDiv.outerHTML,
+            iconSize: ['auto', 'auto'],
+        });
+        let legend = L.marker([49.2125578, 16.62662018], { icon: legendIcon, draggable: true }).addTo(map);
+        map.fitBounds(legend.getLatLng().toBounds(100)); // Điều chỉnh bounds cho phù hợp
+        function makeResizable(element, minW = 100, minH = 100, size = 10) {
+            const top = document.createElement('div');
+            top.style.width = size + 'px';
+            top.style.height = size + 'px';
+            top.style.backgroundColor = 'red';
+            top.style.position = 'absolute';
+            top.style.top = - (size / 2) + 'px';
+            top.style.left = '50%';
+            top.style.transform = 'translate(-50%, 0)';
+            top.style.cursor = 'n-resize';
+
+            top.addEventListener('mousedown', resizeYNegative())
+
+            element.appendChild(top);
+
+            const bottom = document.createElement('div');
+            bottom.style.width = size + 'px';
+            bottom.style.height = size + 'px';
+            bottom.style.backgroundColor = 'blue';
+            bottom.style.position = 'absolute';
+            bottom.style.bottom = - (size / 2) + 'px';
+            bottom.style.left = '50%';
+            bottom.style.transform = 'translate(-50%, 0)';
+            bottom.style.cursor = 'n-resize';
+
+            bottom.addEventListener('mousedown', resizeYPositive())
+
+            element.appendChild(bottom);
+
+            const left = document.createElement('div');
+            left.style.width = size + 'px';
+            left.style.height = size + 'px';
+            left.style.backgroundColor = 'green';
+            left.style.position = 'absolute';
+            left.style.top = '50%';
+            left.style.transform = 'translate(0, -50%)';
+            left.style.left = - (size / 2) + 'px';
+            left.style.cursor = 'e-resize';
+
+            left.addEventListener('mousedown', resizeXNegative())
+
+            element.appendChild(left);
+
+            const right = document.createElement('div');
+            right.style.width = size + 'px';
+            right.style.height = size + 'px';
+            right.style.backgroundColor = 'yellow';
+            right.style.position = 'absolute';
+            right.style.top = '50%';
+            right.style.transform = 'translate(0, -50%)';
+            right.style.right = - (size / 2) + 'px';
+            right.style.cursor = 'e-resize';
+
+            right.addEventListener('mousedown', resizeXPositive())
+
+            element.appendChild(right);
+
+
+            const corner1 = document.createElement('div');
+            corner1.style.width = size + 'px';
+            corner1.style.height = size + 'px';
+            corner1.style.backgroundColor = 'orange';
+            corner1.style.position = 'absolute';
+            corner1.style.top = - (size / 2) + 'px';
+            corner1.style.left = - (size / 2) + 'px';
+            corner1.style.cursor = 'nw-resize';
+
+            corner1.addEventListener('mousedown', resizeXNegative())
+            corner1.addEventListener('mousedown', resizeYNegative())
+
+            element.appendChild(corner1);
+
+            const corner2 = document.createElement('div');
+            corner2.style.width = size + 'px';
+            corner2.style.height = size + 'px';
+            corner2.style.backgroundColor = 'pink';
+            corner2.style.position = 'absolute';
+            corner2.style.top = - (size / 2) + 'px';
+            corner2.style.right = - (size / 2) + 'px';
+            corner2.style.cursor = 'ne-resize';
+
+            corner2.addEventListener('mousedown', resizeXPositive())
+            corner2.addEventListener('mousedown', resizeYNegative())
+
+            element.appendChild(corner2);
+
+            const corner3 = document.createElement('div');
+            corner3.style.width = size + 'px';
+            corner3.style.height = size + 'px';
+            corner3.style.backgroundColor = 'black';
+            corner3.style.position = 'absolute';
+            corner3.style.bottom = - (size / 2) + 'px';
+            corner3.style.left = - (size / 2) + 'px';
+            corner3.style.cursor = 'sw-resize';
+
+            corner3.addEventListener('mousedown', resizeXNegative())
+            corner3.addEventListener('mousedown', resizeYPositive())
+
+            element.appendChild(corner3);
+
+            const corner4 = document.createElement('div');
+            corner4.style.width = size + 'px';
+            corner4.style.height = size + 'px';
+            corner4.style.backgroundColor = 'purple';
+            corner4.style.position = 'absolute';
+            corner4.style.bottom = - (size / 2) + 'px';
+            corner4.style.right = - (size / 2) + 'px';
+            corner4.style.cursor = 'se-resize';
+
+            corner4.addEventListener('mousedown', resizeXPositive())
+            corner4.addEventListener('mousedown', resizeYPositive())
+
+            element.appendChild(corner4);
+            function get_int_style(key) {
+                return parseInt(window.getComputedStyle(element).getPropertyValue(key));
+            }
+
+            function resizeXPositive() {
+                map.dragging.disable();
+                let offsetX
+                function dragMouseDown(e) {
+                    if (e.button !== 0) return
+                    e = e || window.event;
+                    e.preventDefault();
+                    const { clientX } = e;
+                    offsetX = clientX - element.offsetLeft - get_int_style('width');
+                    document.addEventListener('mouseup', closeDragElement)
+                    document.addEventListener('mousemove', elementDrag)
+                }
+
+                function elementDrag(e) {
+                    const { clientX } = e;
+                    let x = clientX - element.offsetLeft - offsetX
+                    if (x < minW) x = minW;
+                    element.style.width = x + 'px';
+                }
+
+                function closeDragElement() {
+                    document.removeEventListener("mouseup", closeDragElement);
+                    document.removeEventListener("mousemove", elementDrag);
+                    map.dragging.enable();
+                }
+                return dragMouseDown
+            }
+
+            function resizeYPositive() {
+                map.dragging.disable();
+                let offsetY
+                function dragMouseDown(e) {
+                    if (e.button !== 0) return
+                    e = e || window.event;
+                    e.preventDefault();
+                    const { clientY } = e;
+                    offsetY = clientY - element.offsetTop - get_int_style('height');
+
+                    document.addEventListener('mouseup', closeDragElement)
+                    document.addEventListener('mousemove', elementDrag)
+                }
+
+                function elementDrag(e) {
+                    const { clientY } = e;
+                    let y = clientY - element.offsetTop - offsetY;
+                    if (y < minH) y = minH;
+                    element.style.height = y + 'px';
+                }
+
+                function closeDragElement() {
+                    document.removeEventListener("mouseup", closeDragElement);
+                    document.removeEventListener("mousemove", elementDrag);
+                    map.dragging.enable();
+                }
+                return dragMouseDown
+            }
+
+            function resizeXNegative() {
+                map.dragging.disable();
+                let offsetX
+                let startX
+                let startW
+                let maxX
+                function dragMouseDown(e) {
+                    if (e.button !== 0) return
+                    e = e || window.event;
+                    e.preventDefault();
+                    const { clientX } = e;
+                    startX = get_int_style('left')
+                    startW = get_int_style('width')
+                    offsetX = clientX - startX;
+                    maxX = startX + startW - minW
+
+                    document.addEventListener('mouseup', closeDragElement)
+                    document.addEventListener('mousemove', elementDrag)
+                    map.dragging.enable();
+                }
+
+                function elementDrag(e) {
+                    const { clientX } = e;
+                    let x = clientX - offsetX
+                    let w = startW + startX - x
+                    if (w < minW) w = minW;
+                    if (x > maxX) x = maxX;
+                    element.style.left = x + 'px';
+                    element.style.width = w + 'px';
+                }
+
+                function closeDragElement() {
+                    document.removeEventListener("mouseup", closeDragElement);
+                    document.removeEventListener("mousemove", elementDrag);
+                    map.dragging.enable();
+                }
+                return dragMouseDown
+            }
+
+            function resizeYNegative() {
+                map.dragging.disable();
+                let offsetY
+                let startY
+                let startH
+                let maxY
+                function dragMouseDown(e) {
+                    if (e.button !== 0) return
+                    e = e || window.event;
+                    e.preventDefault();
+                    const { clientY } = e;
+                    startY = get_int_style('top')
+                    startH = get_int_style('height')
+                    offsetY = clientY - startY;
+                    maxY = startY + startH - minH
+
+                    document.addEventListener('mouseup', closeDragElement, false)
+                    document.addEventListener('mousemove', elementDrag, false)
+                }
+
+                function elementDrag(e) {
+                    const { clientY } = e;
+                    let y = clientY - offsetY
+                    let h = startH + startY - y
+                    if (h < minH) h = minH;
+                    if (y > maxY) y = maxY;
+                    element.style.top = y + 'px';
+                    element.style.height = h + 'px';
+                }
+
+                function closeDragElement() {
+                    document.removeEventListener("mouseup", closeDragElement);
+                    document.removeEventListener("mousemove", elementDrag);
+                    map.dragging.enable();
+                }
+                return dragMouseDown
+            }
+        }
+        // Chờ đến khi phần tử DOM của legend được render và lấy ra
+        const renderedLegend = legend.getElement();
+        // Thực hiện việc thay đổi kích thước trên phần tử đã được render
+        if (renderedLegend) {
+            makeResizable(renderedLegend);
+        }
+    </script>
+</body>
+
+</html>
