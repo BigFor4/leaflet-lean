@@ -234,7 +234,7 @@
                 }
             },
             _drag: function (e) {
-                if (!this._dragging || this._isRotating) return;
+                if (!this._dragging || this._isRotating || this._resize) return;
                 const currentMousePoint = L.point(e.clientX, e.clientY);
                 const offset = currentMousePoint.subtract(this._startMousePoint);
                 const newPoint = this._startPoint.add(offset);
