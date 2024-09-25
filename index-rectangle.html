@@ -57,22 +57,12 @@
 
         L.TextBox = L.Layer.extend({
             initialize: function (htmlElement, latLng, options) {
-                const divText = document.createElement('div');
-                divText.id = 'customOverlayTextBoxDiv';
-                divText.style.height = '100%';
-                divText.style.overflow = 'hidden';
-                const overlay = document.createElement('div');
-                overlay.id = 'customOverlayTextBox';
-                overlay.style.height = '100%';
-                overlay.appendChild(divText);
-                divText.appendChild(htmlElement);
-                this._htmlElement = overlay;
+                this._htmlElement = htmlElement;
                 this._latLng = latLng;
                 L.setOptions(this, options);
                 this._dragging = false;
                 this._resize = false;
             },
-
             onAdd: function (map) {
                 this._map = map;
                 if (!this._container) {
@@ -81,26 +71,22 @@
                 map.getPanes().overlayPane.appendChild(this._container);
                 this._update();
                 map.on('zoomend', this._update, this);
-
                 this._container.addEventListener('mousedown', this._startDrag.bind(this));
             },
-
             onRemove: function (map) {
                 if (this._container) {
                     map.getPanes().overlayPane.removeChild(this._container);
                 }
                 map.off('zoomend', this._update, this);
             },
-
             _initLayout: function () {
                 this._container = this._htmlElement;
                 L.DomUtil.addClass(this._container, 'leaflet-div-overlay');
                 L.DomUtil.addClass(this._container, 'centered-overlay');
                 this._container.style.position = 'absolute';
-
                 this._createResizeHandles();
             },
-            getBoundingBox: function () {
+            getBounds: function () {
                 if (!this._map) return null;
                 const zoom = this._map.getZoom();
                 const scale = Math.pow(2, zoom - this.options.initZoom);
@@ -114,20 +100,47 @@
                 );
                 return L.latLngBounds(topLeft, bottomRight);
             },
+            getBoundPoins: function () {
+                if (!this._map) return null;
+
+                const position = this._map.latLngToLayerPoint(this._latLng);
+                const width = parseFloat(this._container.style.width);
+                const height = parseFloat(this._container.style.height);
+
+                const topLeft = this._map.layerPointToLatLng(position.subtract([width / 2, height / 2]));
+                const topRight = this._map.layerPointToLatLng(position.subtract([-width / 2, height / 2]));
+                const bottomLeft = this._map.layerPointToLatLng(position.subtract([width / 2, -height / 2]));
+                const bottomRight = this._map.layerPointToLatLng(position.subtract([-width / 2, -height / 2]));
+
+                return {
+                    topLeft: topLeft,
+                    topRight: topRight,
+                    bottomLeft: bottomLeft,
+                    bottomRight: bottomRight
+                };
+            },
             _createResizeHandles: function () {
                 if (this.options.editing) {
                     const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right',
-                        'top-middle', 'bottom-middle', 'left-middle', 'right-middle'];
+                        'top-middle', 'bottom-middle', 'left-middle', 'right-middle', 'rotate-top-middle'];
                     positions.forEach((position) => {
                         const handle = document.createElement('div');
                         handle.className = 'resize-handle';
                         handle.style.backgroundColor = position.includes('middle') ? 'blue' : 'red';
-
                         if (position.includes('top')) handle.style.top = '-5px';
                         if (position.includes('bottom')) handle.style.bottom = '-5px';
                         if (position.includes('left')) handle.style.left = '-5px';
                         if (position.includes('right')) handle.style.right = '-5px';
-
+                        if (position === 'rotate-top-middle') {
+                            handle.style.top = '-30px';
+                            handle.style.left = '50%';
+                            handle.style.backgroundColor = 'green';
+                            handle.style.transform = 'translateX(-50%)';
+                            handle.style.cursor = 'pointer';
+                            handle.style.width = '15px';
+                            handle.style.height = '15px';
+                            handle.style.borderRadius = '100px';
+                        }
                         if (position === 'top-middle' || position === 'bottom-middle') {
                             handle.style.left = '50%';
                             handle.style.transform = 'translateX(-50%)';
@@ -135,7 +148,6 @@
                             handle.style.top = '50%';
                             handle.style.transform = 'translateY(-50%)';
                         }
-
                         switch (position) {
                             case 'top-left':
                                 handle.style.cursor = 'nwse-resize';
@@ -178,7 +190,6 @@
 
                 const width = this.options.initialWidthMap * scale;
                 const height = this.options.initialHeightMap * scale;
-
                 this._container.style.width = width + 'px';
                 this._container.style.height = height + 'px';
                 L.DomUtil.setPosition(this._container, position.subtract([width / 2, height / 2]));
@@ -271,6 +282,15 @@
                 this.options.editing = false;
                 const handles = this._container.querySelectorAll('.resize-handle');
                 handles.forEach(handle => handle.remove());
+            },
+            setStyle: function (styles) {
+                for (let property in styles) {
+                    this._container.style[property] = styles[property];
+                }
+            },
+            setLatLng: function (latLng) {
+                this._latLng = latLng;
+                this._update();
             }
         });
         const textBox = document.createElement('div');
@@ -282,15 +302,23 @@
 
         textBox.appendChild(title);
         textBox.appendChild(content);
-
-        const htmlOverlay = new L.TextBox(textBox, latLng, {
+        const divText = document.createElement('div');
+        divText.id = 'customOverlayTextBoxDiv';
+        divText.style.height = '100%';
+        divText.style.overflow = 'hidden';
+        const overlay = document.createElement('div');
+        overlay.id = 'customOverlayTextBox';
+        overlay.style.height = '100%';
+        overlay.appendChild(divText);
+        divText.appendChild(textBox);
+        const htmlOverlay = new L.TextBox(overlay, latLng, {
             initialWidthMap: 200,
             initialHeightMap: 200,
             initZoom: 14,
             dragging: true,
             editing: true
         }).addTo(map);
-        const bounds = htmlOverlay.getBoundingBox()
+        const bounds = htmlOverlay.getBounds()
         map.fitBounds(bounds);
     </script>
 </body>
