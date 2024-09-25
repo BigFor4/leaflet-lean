@@ -62,6 +62,7 @@
                 L.setOptions(this, options);
                 this._dragging = false;
                 this._resize = false;
+                this._rotation = options.rotation || 0;
             },
             onAdd: function (map) {
                 this._map = map;
@@ -102,16 +103,13 @@
             },
             getBoundPoins: function () {
                 if (!this._map) return null;
-
                 const position = this._map.latLngToLayerPoint(this._latLng);
                 const width = parseFloat(this._container.style.width);
                 const height = parseFloat(this._container.style.height);
-
                 const topLeft = this._map.layerPointToLatLng(position.subtract([width / 2, height / 2]));
                 const topRight = this._map.layerPointToLatLng(position.subtract([-width / 2, height / 2]));
                 const bottomLeft = this._map.layerPointToLatLng(position.subtract([width / 2, -height / 2]));
                 const bottomRight = this._map.layerPointToLatLng(position.subtract([-width / 2, -height / 2]));
-
                 return {
                     topLeft: topLeft,
                     topRight: topRight,
@@ -174,28 +172,32 @@
                                 handle.style.cursor = 'ew-resize';
                                 break;
                         }
-
-                        handle.addEventListener('mousedown', (e) => this._startResize(e, position));
+                        if (position === 'rotate-top-middle') {
+                            handle.addEventListener('mousedown', (e) => this._startRotate(e));
+                        } else {
+                            handle.addEventListener('mousedown', (e) => this._startResize(e, position));
+                        }
                         this._container.appendChild(handle);
                     });
                 }
             },
-
-
             _update: function () {
                 if (!this._map) return;
                 const zoom = this._map.getZoom();
                 const scale = Math.pow(2, zoom - this.options.initZoom);
                 const position = this._map.latLngToLayerPoint(this._latLng);
-
                 const width = this.options.initialWidthMap * scale;
                 const height = this.options.initialHeightMap * scale;
                 this._container.style.width = width + 'px';
                 this._container.style.height = height + 'px';
-                L.DomUtil.setPosition(this._container, position.subtract([width / 2, height / 2]));
+                this._container.style.transform = `translate3d(${position.x - width / 2}px, ${position.y - height / 2}px, 0) rotate(${this._rotation}deg)`;
                 this._container.style.display = 'block';
+                this.currentTransform = [position.x - width / 2, position.y - height / 2]
             },
-
+            _updateRotate: function () {
+                if (!this._map && this.currentTransform) return;
+                this._container.style.transform = `translate3d(${this.currentTransform[0]}px, ${this.currentTransform[1]}px, 0) rotate(${this._rotation}deg)`;
+            },
             _startDrag: function (e) {
                 if (this.options.dragging) {
                     this._map.dragging.disable();
@@ -209,7 +211,7 @@
             },
 
             _drag: function (e) {
-                if (!this._dragging) return;
+                if (!this._dragging || this._isRotating) return;
                 const currentMousePoint = L.point(e.clientX, e.clientY);
                 const offset = currentMousePoint.subtract(this._startMousePoint);
                 const newPoint = this._startPoint.add(offset);
@@ -291,15 +293,39 @@
             setLatLng: function (latLng) {
                 this._latLng = latLng;
                 this._update();
-            }
+            },
+            _startRotate: function (e) {
+                this._isRotating = true;
+                this._initialMousePoint = L.point(e.clientX, e.clientY);
+                this._initialRotation = this._rotation;
+                this._center = this._map.latLngToLayerPoint(this._latLng);
+                document.addEventListener('mousemove', this._rotate.bind(this));
+                document.addEventListener('mouseup', this._endRotate.bind(this));
+                e.preventDefault();
+            },
+            _rotate: function (e) {
+                if (!this._isRotating) return;
+                const currentMousePoint = L.point(e.clientX, e.clientY);
+                const initialAngle = Math.atan2(this._initialMousePoint.y - this._center.y, this._initialMousePoint.x - this._center.x);
+                const currentAngle = Math.atan2(currentMousePoint.y - this._center.y, currentMousePoint.x - this._center.x);
+                const angleDiff = (currentAngle - initialAngle) * (180 / Math.PI);
+                this._rotation = this._initialRotation + angleDiff;
+                this._updateRotate();
+            },
+            _endRotate: function () {
+                this._isRotating = false;
+                document.removeEventListener('mousemove', this._rotate.bind(this));
+                document.removeEventListener('mouseup', this._endRotate.bind(this));
+            },
+            getRotation: function () {
+                return this._rotation;
+            },
         });
         const textBox = document.createElement('div');
         const title = document.createElement('h2');
         title.textContent = 'Thông tin';
-
         const content = document.createElement('p');
         content.textContent = 'Đây là nội dung bạn muốn hiển thị.';
-
         textBox.appendChild(title);
         textBox.appendChild(content);
         const divText = document.createElement('div');
