@@ -37,6 +37,30 @@
             cursor: nwse-resize;
             z-index: 10;
         }
+
+        #legendDiv {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            overflow: auto;
+        }
+
+        #legendDiv .flex {
+            flex-grow: 1;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #legendDiv .text-lg {
+            flex-shrink: 0;
+        }
+
+        #legendDiv .electrical {
+            width: 100%;
+            word-wrap: break-word;
+        }
     </style>
 </head>
 
@@ -209,7 +233,6 @@
                     e.preventDefault();
                 }
             },
-
             _drag: function (e) {
                 if (!this._dragging || this._isRotating) return;
                 const currentMousePoint = L.point(e.clientX, e.clientY);
@@ -218,68 +241,57 @@
                 this._latLng = this._map.layerPointToLatLng(newPoint);
                 this._update();
             },
-
             _endDrag: function () {
                 this._dragging = false;
                 this._map.dragging.enable();
                 document.removeEventListener('mousemove', this._drag.bind(this));
                 document.removeEventListener('mouseup', this._endDrag.bind(this));
             },
-
             _startResize: function (e, position) {
                 this._resize = true;
                 this._initialMousePoint = L.point(e.clientX, e.clientY);
                 this._initialWidth = this.options.initialWidthMap;
                 this._initialHeight = this.options.initialHeightMap;
-
-                document.addEventListener('mousemove', (e) => this._resizeOverlay(e, position));
-                document.addEventListener('mouseup', this._endResize.bind(this));
+                this._boundResizeOverlay = (e) => this._resizeOverlay(e, position)
+                this._boundEndResize = this._endResize.bind(this);
+                document.addEventListener('mousemove', this._boundResizeOverlay);
+                document.addEventListener('mouseup', this._boundEndResize);
                 e.preventDefault();
             },
-
             _resizeOverlay: function (e, position) {
                 if (!this._resize) return;
-
                 const currentMousePoint = L.point(e.clientX, e.clientY);
                 const widthDiff = currentMousePoint.x - this._initialMousePoint.x;
                 const heightDiff = currentMousePoint.y - this._initialMousePoint.y;
-
                 if (position.includes('right')) {
                     this.options.initialWidthMap = Math.max(50, this._initialWidth + widthDiff);
                 } else if (position.includes('left')) {
                     this.options.initialWidthMap = Math.max(50, this._initialWidth - widthDiff);
                 }
-
                 if (position.includes('bottom')) {
                     this.options.initialHeightMap = Math.max(50, this._initialHeight + heightDiff);
                 } else if (position.includes('top')) {
                     this.options.initialHeightMap = Math.max(50, this._initialHeight - heightDiff);
                 }
-
                 this._update();
             },
-
             _endResize: function () {
                 this._resize = false;
-                document.removeEventListener('mousemove', this._resizeOverlay.bind(this));
-                document.removeEventListener('mouseup', this._endResize.bind(this));
+                document.removeEventListener('mousemove', this._boundResizeOverlay);
+                document.removeEventListener('mouseup', this._boundEndResize);
             },
-
             enableDragging: function () {
                 this.options.dragging = true;
                 this._container.style.cursor = 'move';
             },
-
             disableDragging: function () {
                 this.options.dragging = false;
                 this._container.style.cursor = 'default';
             },
-
             enableEditing: function () {
                 this.options.editing = true;
                 this._createResizeHandles();
             },
-
             disableEditing: function () {
                 this.options.editing = false;
                 const handles = this._container.querySelectorAll('.resize-handle');
@@ -321,13 +333,47 @@
                 return this._rotation;
             },
         });
-        const textBox = document.createElement('div');
-        const title = document.createElement('h2');
-        title.textContent = 'Thông tin';
-        const content = document.createElement('p');
-        content.textContent = 'Đây là nội dung bạn muốn hiển thị.';
-        textBox.appendChild(title);
-        textBox.appendChild(content);
+        const getColor = (category) => {
+            return category === 'Wall Light'
+                ? 'green'
+                : category === 'Downlight'
+                    ? 'red'
+                    : category === 'Pendant Light'
+                        ? 'orange'
+                        : category === 'Double Powerpoint'
+                            ? 'blue'
+                            : category === 'USP Powerpoint'
+                                ? '#00ff00'
+                                : '#ffffff'
+        }
+        const legendDiv = document.createElement('div');
+        const categories = [
+            { unit: '3EA', icon: 'ph ph-check', title: 'Wall Light' },
+            { unit: '4EA', icon: 'ph ph-square', title: 'Downlight' },
+            { unit: '5EA', icon: 'ph ph-circle', title: 'Pendant Light' },
+            { unit: '6EA', icon: 'ph ph-arrows-out-line-vertical', title: 'Double Powerpoint' },
+            { unit: '8EA', icon: 'ph ph-hexagon', title: 'USP Powerpoint' },
+        ];
+        let labels = [
+            '<div class="text-lg font-semibold electrical">Electrical</div>',
+        ];
+        for (let i = 0; i < categories.length; i++) {
+            labels.push(
+                `<div class="flex gap-4 justify-between">
+            <div><i style="color: ${getColor(categories[i].title)}" class="${categories[i].icon} electrical"></i></div>
+            <div class="text-start w-full electrical">${categories[i].title}</div>
+            <div class="electrical legend-unit">${categories[i].unit}</div>
+            </div>`
+            );
+        }
+        legendDiv.style.background = 'white';
+        legendDiv.style.padding = '1rem';
+        legendDiv.style.border = '1px solid rgb(203 213 225)';
+        legendDiv.style.cursor = 'pointer';
+        legendDiv.style.overflow = 'hidden';
+        legendDiv.innerHTML = labels.join('<br>');
+        legendDiv.id = 'legendDiv'
+
         const divText = document.createElement('div');
         divText.id = 'customOverlayTextBoxDiv';
         divText.style.height = '100%';
@@ -336,7 +382,7 @@
         overlay.id = 'customOverlayTextBox';
         overlay.style.height = '100%';
         overlay.appendChild(divText);
-        divText.appendChild(textBox);
+        divText.appendChild(legendDiv);
         const htmlOverlay = new L.TextBox(overlay, latLng, {
             initialWidthMap: 200,
             initialHeightMap: 200,
