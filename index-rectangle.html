@@ -100,7 +100,20 @@
 
                 this._createResizeHandles();
             },
-
+            getBoundingBox: function () {
+                if (!this._map) return null;
+                const zoom = this._map.getZoom();
+                const scale = Math.pow(2, zoom - this.options.initZoom);
+                const width = this.options.initialWidthMap * scale;
+                const height = this.options.initialHeightMap * scale;
+                const topLeft = this._map.layerPointToLatLng(
+                    this._map.latLngToLayerPoint(this._latLng).subtract([width / 2, height / 2])
+                );
+                const bottomRight = this._map.layerPointToLatLng(
+                    this._map.latLngToLayerPoint(this._latLng).add([width / 2, height / 2])
+                );
+                return L.latLngBounds(topLeft, bottomRight);
+            },
             _createResizeHandles: function () {
                 if (this.options.editing) {
                     const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right',
@@ -110,13 +123,11 @@
                         handle.className = 'resize-handle';
                         handle.style.backgroundColor = position.includes('middle') ? 'blue' : 'red';
 
-                        // Set position styles
                         if (position.includes('top')) handle.style.top = '-5px';
                         if (position.includes('bottom')) handle.style.bottom = '-5px';
                         if (position.includes('left')) handle.style.left = '-5px';
                         if (position.includes('right')) handle.style.right = '-5px';
 
-                        // Center handles
                         if (position === 'top-middle' || position === 'bottom-middle') {
                             handle.style.left = '50%';
                             handle.style.transform = 'translateX(-50%)';
@@ -125,35 +136,33 @@
                             handle.style.transform = 'translateY(-50%)';
                         }
 
-                        // Set cursor style based on position
                         switch (position) {
                             case 'top-left':
-                                handle.style.cursor = 'nwse-resize'; // Diagonal resize
+                                handle.style.cursor = 'nwse-resize';
                                 break;
                             case 'top-right':
-                                handle.style.cursor = 'nesw-resize'; // Diagonal resize
+                                handle.style.cursor = 'nesw-resize';
                                 break;
                             case 'bottom-left':
-                                handle.style.cursor = 'nesw-resize'; // Diagonal resize
+                                handle.style.cursor = 'nesw-resize';
                                 break;
                             case 'bottom-right':
-                                handle.style.cursor = 'nwse-resize'; // Diagonal resize
+                                handle.style.cursor = 'nwse-resize';
                                 break;
                             case 'top-middle':
-                                handle.style.cursor = 'ns-resize'; // Vertical resize
+                                handle.style.cursor = 'ns-resize';
                                 break;
                             case 'bottom-middle':
-                                handle.style.cursor = 'ns-resize'; // Vertical resize
+                                handle.style.cursor = 'ns-resize';
                                 break;
                             case 'left-middle':
-                                handle.style.cursor = 'ew-resize'; // Horizontal resize
+                                handle.style.cursor = 'ew-resize';
                                 break;
                             case 'right-middle':
-                                handle.style.cursor = 'ew-resize'; // Horizontal resize
+                                handle.style.cursor = 'ew-resize';
                                 break;
                         }
 
-                        // Event listener for resizing
                         handle.addEventListener('mousedown', (e) => this._startResize(e, position));
                         this._container.appendChild(handle);
                     });
@@ -281,7 +290,8 @@
             dragging: true,
             editing: true
         }).addTo(map);
-
+        const bounds = htmlOverlay.getBoundingBox()
+        map.fitBounds(bounds);
     </script>
 </body>
 
