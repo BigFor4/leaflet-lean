@@ -18,7 +18,6 @@
         .leaflet-div-overlay {
             background: white;
             border: 1px solid black;
-            padding: 10px;
             pointer-events: auto;
             cursor: move;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
@@ -308,20 +307,26 @@
             },
             _startRotate: function (e) {
                 this._isRotating = true;
-                this._initialMousePoint = L.point(e.clientX, e.clientY);
+                this._initialMouseLatLng = this._map.mouseEventToLatLng(e);
                 this._initialRotation = this._rotation;
-                this._center = this._map.latLngToLayerPoint(this._latLng);
+                this._center = this._latLng;
                 document.addEventListener('mousemove', this._rotate.bind(this));
                 document.addEventListener('mouseup', this._endRotate.bind(this));
                 e.preventDefault();
             },
             _rotate: function (e) {
                 if (!this._isRotating) return;
-                const currentMousePoint = L.point(e.clientX, e.clientY);
-                const initialAngle = Math.atan2(this._initialMousePoint.y - this._center.y, this._initialMousePoint.x - this._center.x);
-                const currentAngle = Math.atan2(currentMousePoint.y - this._center.y, currentMousePoint.x - this._center.x);
+                const currentMouseLatLng = this._map.mouseEventToLatLng(e);
+                const initialAngle = Math.atan2(
+                    this._initialMouseLatLng.lat - this._center.lat,
+                    this._initialMouseLatLng.lng - this._center.lng
+                );
+                const currentAngle = Math.atan2(
+                    currentMouseLatLng.lat - this._center.lat,
+                    currentMouseLatLng.lng - this._center.lng
+                );
                 const angleDiff = (currentAngle - initialAngle) * (180 / Math.PI);
-                this._rotation = this._initialRotation + angleDiff;
+                this._rotation = this._initialRotation - angleDiff;
                 this._updateRotate();
             },
             _endRotate: function () {
@@ -329,6 +334,7 @@
                 document.removeEventListener('mousemove', this._rotate.bind(this));
                 document.removeEventListener('mouseup', this._endRotate.bind(this));
             },
+
             getRotation: function () {
                 return this._rotation;
             },

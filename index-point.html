@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>Display HTML Overlay with Zoom</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        .leaflet-div-overlay {
+            background: white;
+            border: 1px solid black;
+            pointer-events: auto;
+            cursor: move;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            transform-origin: top left;
+        }
+
+        .centered-overlay {
+            transform-origin: center;
+        }
+
+        .resize-handle {
+            width: 10px;
+            height: 10px;
+            background: red;
+            position: absolute;
+            cursor: nwse-resize;
+            z-index: 10;
+        }
+
+        #legendDiv {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            overflow: auto;
+        }
+
+        #legendDiv .flex {
+            flex-grow: 1;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #legendDiv .text-lg {
+            flex-shrink: 0;
+        }
+
+        #legendDiv .electrical {
+            width: 100%;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <p><a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">&copy; MapTiler</a> <a
+            href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap
+            contributors</a></p>
+
+    <script>
+        const map = L.map('map').setView([49.2125578, 16.62662018], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        const latLng = L.latLng(49.2125578, 16.62662018);
+
+        L.Point = L.Layer.extend({
+            initialize: function (latLng, options) {
+                const div = document.createElement('div');
+                div.style.width = options.size + 'px';
+                div.style.height = options.size + 'px';
+                div.style.backgroundColor = options.color;
+                div.style.borderRadius = "100%";
+                this._htmlElement = div;
+                this._latLng = latLng;
+                L.setOptions(this, options);
+            },
+            onAdd: function (map) {
+                this._map = map;
+                if (!this._container) {
+                    this._initLayout();
+                }
+                map.getPanes().overlayPane.appendChild(this._container);
+                this._update();
+                map.on('zoomend', this._update, this);
+                this._container.addEventListener('mousedown', this._startDrag.bind(this));
+            },
+            onRemove: function (map) {
+                if (this._container) {
+                    map.getPanes().overlayPane.removeChild(this._container);
+                }
+                map.off('zoomend', this._update, this);
+            },
+            _initLayout: function () {
+                this._container = this._htmlElement;
+                L.DomUtil.addClass(this._container, 'leaflet-div-overlay');
+                L.DomUtil.addClass(this._container, 'centered-overlay');
+                this._container.style.position = 'absolute';
+            },
+            getBounds: function () {
+                if (!this._map) return null;
+                const zoom = this._map.getZoom();
+                const scale = Math.pow(2, zoom - this.options.initZoom);
+                const width = this.options.size * scale;
+                const height = this.options.size * scale;
+                const topLeft = this._map.layerPointToLatLng(
+                    this._map.latLngToLayerPoint(this._latLng).subtract([width / 2, height / 2])
+                );
+                const bottomRight = this._map.layerPointToLatLng(
+                    this._map.latLngToLayerPoint(this._latLng).add([width / 2, height / 2])
+                );
+                return L.latLngBounds(topLeft, bottomRight);
+            },
+            getBoundPoints: function () { // Fixed the typo here
+                if (!this._map) return null;
+                const position = this._map.latLngToLayerPoint(this._latLng);
+                const width = parseFloat(this._container.style.width);
+                const height = parseFloat(this._container.style.height);
+                const topLeft = this._map.layerPointToLatLng(position.subtract([width / 2, height / 2]));
+                const topRight = this._map.layerPointToLatLng(position.subtract([-width / 2, height / 2]));
+                const bottomLeft = this._map.layerPointToLatLng(position.subtract([width / 2, -height / 2]));
+                const bottomRight = this._map.layerPointToLatLng(position.subtract([-width / 2, -height / 2]));
+                return {
+                    topLeft: topLeft,
+                    topRight: topRight,
+                    bottomLeft: bottomLeft,
+                    bottomRight: bottomRight
+                };
+            },
+            _update: function () {
+                if (!this._map) return;
+                const zoom = this._map.getZoom();
+                const scale = Math.pow(2, zoom - this.options.initZoom);
+                const position = this._map.latLngToLayerPoint(this._latLng);
+                const width = this.options.size * scale;
+                const height = this.options.size * scale;
+                this._container.style.width = width + 'px';
+                this._container.style.height = height + 'px';
+                this._container.style.transform = `translate3d(${position.x - width / 2}px, ${position.y - height / 2}px, 0)`;
+            },
+            _startDrag: function (e) {
+                if (this.options.dragging) {
+                    this._map.dragging.disable();
+                    this._dragging = true;
+                    this._startPoint = this._map.latLngToLayerPoint(this._latLng);
+                    this._startMousePoint = L.point(e.clientX, e.clientY);
+                    document.addEventListener('mousemove', this._drag.bind(this));
+                    document.addEventListener('mouseup', this._endDrag.bind(this));
+                    e.preventDefault();
+                }
+            },
+            _drag: function (e) {
+                if (!this._dragging) return;
+                const currentMousePoint = L.point(e.clientX, e.clientY);
+                const offset = currentMousePoint.subtract(this._startMousePoint);
+                const newPoint = this._startPoint.add(offset);
+                this._latLng = this._map.layerPointToLatLng(newPoint);
+                this._update();
+            },
+            _endDrag: function () {
+                this._dragging = false;
+                this._map.dragging.enable();
+                document.removeEventListener('mousemove', this._drag.bind(this));
+                document.removeEventListener('mouseup', this._endDrag.bind(this));
+            },
+            enableDragging: function () {
+                this.options.dragging = true;
+                this._container.style.cursor = 'move';
+            },
+            disableDragging: function () {
+                this.options.dragging = false;
+                this._container.style.cursor = 'default';
+            },
+            setStyle: function (styles) {
+                for (let property in styles) {
+                    this._container.style[property] = styles[property];
+                }
+            },
+            setLatLng: function (latLng) {
+                this._latLng = latLng;
+                this._update();
+            },
+        });
+
+        const htmlOverlay = new L.Point(latLng, {
+            size: 15,
+            initZoom: 14,
+            color: 'red',
+            dragging: true,
+        }).addTo(map);
+
+        const bounds = htmlOverlay.getBounds();
+        map.fitBounds(bounds);
+    </script>
+</body>
+
+</html>
