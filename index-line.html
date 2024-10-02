@@ -72,7 +72,8 @@
                 ],
                 options: {
                     label: 'SS',
-                    id: '219312936189461238461289348123'
+                    id: '219312936189461238461289348123',
+                    editing: false
                 }
             },
             {
@@ -84,8 +85,8 @@
                     [49.210000, 16.620000]
                 ],
                 options: {
-                    label: 'DD',
-                    id: '123412834671239841293462398746'
+                    id: '123412834671239841293462398746',
+                    editing: true
                 }
 
             }
@@ -95,8 +96,10 @@
             initialize: function (latLngs, options) {
                 L.setOptions(this, options);
                 this._latLngs = latLngs;
+                this.isLabelDash = typeof options.label === "string" && options.label?.length > 0
                 this.linesAndMarkers = [];
                 this.pointsEdit = [];
+                this.editing = options.editing;
                 this.currentlyDragging = null;
             },
             onAdd: function (map) {
@@ -109,57 +112,71 @@
                 this.linesAndMarkers = [];
                 this.pointsEdit.forEach(layer => this._map.removeLayer(layer));
                 this.pointsEdit = [];
-
                 this.drawLineDraw();
-                this.drawPoints();
-            },
-
-            drawLineDraw: function () {
-                const coordsAll = this._latLngs;
-                const lineId = this.options.lineId;
-
-                let lineSegments = [];
-                for (let i = 0; i < coordsAll.length - 1; i++) {
-                    lineSegments.push({ coords: [coordsAll[i], coordsAll[i + 1]], indexStart: i });
+                if (this.editing) {
+                    this.drawPoints();
                 }
-
-                lineSegments.forEach(segment => this.drawLineSegment(segment));
             },
-
+            drawLineDraw: function () {
+                if (this.isLabelDash) {
+                    const coordsAll = this._latLngs;
+                    let lineSegments = [];
+                    for (let i = 0; i < coordsAll.length - 1; i++) {
+                        lineSegments.push({ coords: [coordsAll[i], coordsAll[i + 1]], indexStart: i });
+                    }
+                    lineSegments.forEach(segment => this.drawLineSegment(segment));
+                } else {
+                    this.drawLineDefault();
+                }
+            },
+            drawLineDefault: function () {
+                const coordsAll = this._latLngs;
+                if (this.editing) {
+                    for (let i = 0; i < coordsAll.length - 1; i++) {
+                        const coords = [coordsAll[i], coordsAll[i + 1]];
+                        const indexStart = i;
+                        const midpointCenter = [
+                            (coords[0][0] + coords[1][0]) / 2,
+                            (coords[0][1] + coords[1][1]) / 2
+                        ];
+                        const bearing = this.calculateBearing(coords[0][0], coords[0][1], coords[1][0], coords[1][1]);
+                        const distance = this._map.distance(L.latLng(coords[0][0], coords[0][1]), L.latLng(coords[1][0], coords[1][1]));
+                        this.drawPointCenter(midpointCenter, indexStart);
+                        this.drawLabel(midpointCenter, `${distance.toFixed(2)} m`, bearing, 'labelLineCenter');
+                    }
+                }
+                const layer = L.polyline(coordsAll, this.options).addTo(this._map);
+                this.linesAndMarkers.push(layer);
+            },
             drawLineSegment: function (segment) {
                 const { coords, indexStart } = segment;
                 const label = this.options.label;
-                const lineId = this.options.lineId;
-
                 const totalLengthPx = this._map.latLngToLayerPoint(coords[0]).distanceTo(this._map.latLngToLayerPoint(coords[1]));
                 const labelLengthPx = (label.length * 15);
                 const numDashes = Math.floor(totalLengthPx / labelLengthPx);
                 const distance = this._map.distance(L.latLng(coords[0][0], coords[0][1]), L.latLng(coords[1][0], coords[1][1]));
                 const bearing = this.calculateBearing(coords[0][0], coords[0][1], coords[1][0], coords[1][1]);
                 const midpointCenter = L.latLng((coords[0][0] + coords[1][0]) / 2, (coords[0][1] + coords[1][1]) / 2);
-
-                this.drawLabel(midpointCenter, `${distance.toFixed(2)} m`, bearing, 'labelLineCenter', lineId);
-                this.drawPointCenter(midpointCenter, lineId, indexStart);
-
+                this.drawLabel(midpointCenter, `${distance.toFixed(2)} m`, bearing, 'labelLineCenter');
+                if (this.editing) {
+                    this.drawPointCenter(midpointCenter, indexStart);
+                }
                 for (let i = 0; i < numDashes; i++) {
                     const point1 = this.interpolateCoord(coords[0][0], coords[0][1], coords[1][0], coords[1][1], i / numDashes);
                     const point2 = this.interpolateCoord(coords[0][0], coords[0][1], coords[1][0], coords[1][1], (i + 1) / numDashes);
-
                     if (i % 2 === 0) {
-                        this.drawDashLine(point1, point2, lineId);
+                        this.drawDashLine(point1, point2);
                     } else {
                         const midpoint = L.latLng((point1[0] + point2[0]) / 2, (point1[1] + point2[1]) / 2);
-                        this.drawLabel(midpoint, label, bearing, 'labelLine', lineId);
+                        this.drawLabel(midpoint, label, bearing, 'labelLine');
                     }
                 }
             },
-
-            drawDashLine: function (point1, point2, lineId) {
-                const layer = L.polyline([point1, point2], { color: 'red', weight: 6, lineId }).addTo(this._map);
+            drawDashLine: function (point1, point2) {
+                const layer = L.polyline([point1, point2], { color: 'red', weight: 6 }).addTo(this._map);
                 this.linesAndMarkers.push(layer);
             },
-
-            drawLabel: function (latLng, text, bearing, className, lineId) {
+            drawLabel: function (latLng, text, bearing, className) {
                 const labelLengthPx = (text.length * 15);
                 const layer = L.marker(latLng, {
                     icon: L.divIcon({
@@ -167,15 +184,12 @@
                         html: `<div style="transform: rotate(${bearing}deg);; display: flex; justify-content: center; width: 100%; height: 100%;">${text}</div>`,
                         iconSize: [labelLengthPx / 2, labelLengthPx / 2]
                     }),
-                    lineId
                 }).addTo(this._map);
                 this.linesAndMarkers.push(layer);
             },
-
-            drawPointCenter: function (latLng, lineId, indexStart) {
+            drawPointCenter: function (latLng, indexStart) {
                 const self = this;
                 const pointDrawCenter = L.marker(latLng, {
-                    lineId,
                     indexDraw: indexStart + 1,
                     isCenter: true,
                     draggable: true,
@@ -185,7 +199,6 @@
                         iconAnchor: [10, 10]
                     })
                 }).addTo(this._map);
-
                 this.linesAndMarkers.push(pointDrawCenter);
                 pointDrawCenter.on('mouseover', function (e) {
                     if (e.target.options?.isCenter) {
@@ -253,7 +266,6 @@
                 const self = this;
                 this._latLngs.forEach((coord, index) => {
                     const pointDraw = L.marker(coord, {
-                        lineId: this.options.lineId,
                         indexDraw: index,
                         draggable: true,
                         icon: L.divIcon({
@@ -269,7 +281,6 @@
                         });
                         self.currentlyDragging.dragging.enable();
                     });
-
                     pointDraw.on('drag', function (e) {
                         const newLatLng = e.target.getLatLng();
                         const indexDraw = e.target.options.indexDraw;
@@ -302,7 +313,16 @@
             },
             interpolateCoord: function (lat1, lon1, lat2, lon2, factor) {
                 return [lat1 + (lat2 - lat1) * factor, lon1 + (lon2 - lon1) * factor];
-            }
+            },
+            enableEditing: function () {
+                this.options.editing = true;
+                this._createResizeHandles();
+            },
+            disableEditing: function () {
+                this.options.editing = false;
+                const handles = this._container.querySelectorAll('.resize-handle');
+                handles.forEach(handle => handle.remove());
+            },
         });
         lines.map(item => {
             const lineLayer = new L.LineLayer(item.coords, item.options).addTo(map);
