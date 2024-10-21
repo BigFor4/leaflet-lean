@@ -78,38 +78,103 @@
 
         const latLng = L.latLng(49.2125578, 16.62662018);
 
-        L.Point = L.Layer.extend({
-            initialize: function (latLng, options) {
+
+        L.PointLayer = L.Layer.extend({
+            initialize: function (html, latLng, options) {
+                L.setOptions(this, options);
+                let svg = null;
+                if (typeof html === 'string') {
+                    const div = document.createElement('div');
+                    div.innerHTML = html
+                    svg = div.firstElementChild;
+                } else {
+                    svg = html;
+                }
+                if (options.styles) {
+                    for (let property in options.styles) {
+                        html.style[property] = options.styles[property];
+                    }
+                }
                 const div = document.createElement('div');
-                div.style.width = options.size + 'px';
-                div.style.height = options.size + 'px';
-                div.style.backgroundColor = options.color;
-                div.style.borderRadius = "100%";
+                this._width = parseFloat(svg.getAttribute('width')) || 100;
+                this._height = parseFloat(svg.getAttribute('height')) || 100;
+                div.width = this._width
+                div.height = this._height
+                div.appendChild(svg);
                 this._htmlElement = div;
                 this._latLng = latLng;
-                L.setOptions(this, options);
+                this._initLatLng = latLng;
+                this._rotation = options.rotation || 0;
             },
             onAdd: function (map) {
+                const self = this;
                 this._map = map;
                 if (!this._container) {
                     this._initLayout();
                 }
                 map.getPanes().overlayPane.appendChild(this._container);
-                this._update();
                 map.on('zoomend', this._update, this);
                 this._container.addEventListener('mousedown', this._startDrag.bind(this));
+                if (this.options?.events?.length > 0) {
+                    this.options.events.forEach(event => {
+                        this._container.addEventListener(event.event, (e) => {
+                            event.action(self, e);
+                        });
+                    });
+                }
+                this._update();
+            },
+            _updateRotate: function () {
+                if (!this._map && this.currentTransform) return;
+                this._container.style.transform = `translate3d(${this.currentTransform[0]}px, ${this.currentTransform[1]}px, 0) rotate(${this._rotation}deg)`;
+            },
+            _createResizeHandles: function () {
+                if (this.options.rotating) {
+                    const positions = ['rotate-top-middle'];
+                    positions.forEach((position) => {
+                        const handle = document.createElement('div');
+                        handle.className = 'resize-handle';
+                        handle.style.backgroundColor = position.includes('middle') ? 'blue' : 'red';
+                        if (position.includes('top')) handle.style.top = '-5px';
+                        if (position === 'rotate-top-middle') {
+                            handle.style.top = '-30px';
+                            handle.style.left = '50%';
+                            handle.style.backgroundColor = 'green';
+                            handle.style.transform = 'translateX(-50%)';
+                            handle.style.cursor = 'pointer';
+                            handle.style.width = '15px';
+                            handle.style.height = '15px';
+                            handle.style.borderRadius = '100px';
+                        }
+                        if (position === 'rotate-top-middle') {
+                            handle.addEventListener('mousedown', (e) => this._startRotate(e));
+                        }
+                        this._container.appendChild(handle);
+                    });
+                }
+            },
+            _update: function () {
+                if (!this._map) return;
+                const zoom = this._map.getZoom();
+                const scale = Math.pow(2, zoom - this.options.initZoom);
+                const position = this._map.latLngToLayerPoint(this._latLng);
+                const width = this._width * scale;
+                const height = this._height * scale;
+                this._container.style.width = width + 'px';
+                this._container.style.height = height + 'px';
+                this._container.style.transform = `translate3d(${position.x - width / 2}px, ${position.y - height / 2}px, 0) rotate(${this._rotation}deg)`;
+                this.currentTransform = [position.x - width / 2, position.y - height / 2]
+            },
+            _initLayout: function () {
+                this._container = this._htmlElement;
+                this._container.style.position = 'absolute';
+                this._createResizeHandles();
             },
             onRemove: function (map) {
                 if (this._container) {
                     map.getPanes().overlayPane.removeChild(this._container);
                 }
                 map.off('zoomend', this._update, this);
-            },
-            _initLayout: function () {
-                this._container = this._htmlElement;
-                L.DomUtil.addClass(this._container, 'leaflet-div-overlay');
-                L.DomUtil.addClass(this._container, 'centered-overlay');
-                this._container.style.position = 'absolute';
             },
             getBounds: function () {
                 if (!this._map) return null;
@@ -125,7 +190,7 @@
                 );
                 return L.latLngBounds(topLeft, bottomRight);
             },
-            getBoundPoints: function () { // Fixed the typo here
+            getBoundPoints: function () {
                 if (!this._map) return null;
                 const position = this._map.latLngToLayerPoint(this._latLng);
                 const width = parseFloat(this._container.style.width);
@@ -141,17 +206,6 @@
                     bottomRight: bottomRight
                 };
             },
-            _update: function () {
-                if (!this._map) return;
-                const zoom = this._map.getZoom();
-                const scale = Math.pow(2, zoom - this.options.initZoom);
-                const position = this._map.latLngToLayerPoint(this._latLng);
-                const width = this.options.size * scale;
-                const height = this.options.size * scale;
-                this._container.style.width = width + 'px';
-                this._container.style.height = height + 'px';
-                this._container.style.transform = `translate3d(${position.x - width / 2}px, ${position.y - height / 2}px, 0)`;
-            },
             _startDrag: function (e) {
                 if (this.options.dragging) {
                     this._map.dragging.disable();
@@ -164,7 +218,7 @@
                 }
             },
             _drag: function (e) {
-                if (!this._dragging) return;
+                if (!this._dragging || this._isRotating) return;
                 const currentMousePoint = L.point(e.clientX, e.clientY);
                 const offset = currentMousePoint.subtract(this._startMousePoint);
                 const newPoint = this._startPoint.add(offset);
@@ -173,7 +227,9 @@
             },
             _endDrag: function () {
                 this._dragging = false;
-                this._map.dragging.enable();
+                if (this._map?.dragging) {
+                    this._map.dragging.enable();
+                }
                 document.removeEventListener('mousemove', this._drag.bind(this));
                 document.removeEventListener('mouseup', this._endDrag.bind(this));
             },
@@ -185,6 +241,14 @@
                 this.options.dragging = false;
                 this._container.style.cursor = 'default';
             },
+            enableRoteting: function () {
+                this.options.roteting = true;
+                this._container.style.cursor = 'move';
+            },
+            disableRoteting: function () {
+                this.options.roteting = false;
+                this._container.style.cursor = 'default';
+            },
             setStyle: function (styles) {
                 for (let property in styles) {
                     this._container.style[property] = styles[property];
@@ -194,13 +258,80 @@
                 this._latLng = latLng;
                 this._update();
             },
+            calculateBearing: function (lat1, lon1, lat2, lon2) {
+                const toRad = (val) => val * Math.PI / 180;
+                const toDeg = (val) => val * 180 / Math.PI;
+                const dLon = toRad(lon2 - lon1);
+                const lat1Rad = toRad(lat1);
+                const lat2Rad = toRad(lat2);
+                const y = Math.sin(dLon) * Math.cos(lat2Rad);
+                const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+                    Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+                return ((toDeg(Math.atan2(y, x)) + 360) % 360) - 90;
+            },
+            getLatLng: function () {
+                return this._latLng;
+            },
+            getInitLatLng: function () {
+                return this._initLatLng;
+            },
+            getDomLayer: function () {
+                return this._htmlElement;
+            },
+            _startRotate: function (e) {
+                if (this.options.rotating) {
+                    this._isRotating = true;
+                    this._initialMouseLatLng = this._map.mouseEventToLatLng(e);
+                    this._initialRotation = this._rotation;
+                    this._center = this._latLng;
+                    document.addEventListener('mousemove', this._rotate.bind(this));
+                    document.addEventListener('mouseup', this._endRotate.bind(this));
+                    e.preventDefault();
+                }
+            },
+            _rotate: function (e) {
+                if (!this._isRotating) return;
+                const currentMouseLatLng = this._map.mouseEventToLatLng(e);
+                const initialAngle = Math.atan2(
+                    this._initialMouseLatLng.lat - this._center.lat,
+                    this._initialMouseLatLng.lng - this._center.lng
+                );
+                const currentAngle = Math.atan2(
+                    currentMouseLatLng.lat - this._center.lat,
+                    currentMouseLatLng.lng - this._center.lng
+                );
+                const angleDiff = (currentAngle - initialAngle) * (180 / Math.PI);
+                this._rotation = this._initialRotation - angleDiff;
+                this._updateRotate();
+            },
+            _endRotate: function () {
+                this._isRotating = false;
+                document.removeEventListener('mousemove', this._rotate.bind(this));
+                document.removeEventListener('mouseup', this._endRotate.bind(this));
+            },
+            getWidthHeight: function () {
+                const width = this.options.initialWidthMap;
+                const height = this.options.initialHeightMap;
+                return {
+                    width,
+                    height
+                }
+            },
+            getRotation: function () {
+                return this._rotation;
+            },
         });
-
-        const htmlOverlay = new L.Point(latLng, {
-            size: 15,
+        const div = `<svg width="63" height="27" viewBox="0 0 63 27" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="1.5" y1="7" x2="1.5" y2="27" stroke="black" stroke-width="3"/>
+            <line x1="61.5" y1="7" x2="61.5" y2="27" stroke="black" stroke-width="3"/>
+            <path d="M1 9L16 17.6603V0.339746L1 9ZM60 9L45 0.339746V17.6603L60 9ZM14.5 10.5H46.5V7.5H14.5V10.5Z" fill="black"/>
+            </svg>
+            `
+        const htmlOverlay = new L.PointLayer(div, latLng, {
             initZoom: 14,
             color: 'red',
             dragging: true,
+            rotating: true,
         }).addTo(map);
 
         const bounds = htmlOverlay.getBounds();

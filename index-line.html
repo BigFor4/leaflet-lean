@@ -129,6 +129,29 @@
                     this.drawLineDefault();
                 }
             },
+            getBounds: function () {
+                if (!this._map) return null;
+                let bounds = L.latLngBounds();
+                this._latLngs.forEach(latLng => {
+                    bounds.extend(latLng);
+                });
+                return bounds;
+            },
+            getBoundPoints: function () {
+                if (!this._map || !this._latLngs.length) return null;
+                let topLeft, topRight, bottomLeft, bottomRight;
+                let bounds = this.getBounds();
+                topLeft = bounds.getNorthWest();
+                bottomRight = bounds.getSouthEast();
+                topRight = L.latLng(topLeft.lat, bottomRight.lng);
+                bottomLeft = L.latLng(bottomRight.lat, topLeft.lng);
+                return {
+                    topLeft: topLeft,
+                    topRight: topRight,
+                    bottomLeft: bottomLeft,
+                    bottomRight: bottomRight
+                };
+            },
             drawLineDefault: function () {
                 const coordsAll = this._latLngs;
                 if (this.editing) {
